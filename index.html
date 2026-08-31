@@ -9,7 +9,7 @@
   
   try {
     // Apne Backend URL se replace karein (e.g. Render Live URL)
-    const res = await fetch('http://localhost:5000/translate', {
+    const res = await fetch('/translate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
