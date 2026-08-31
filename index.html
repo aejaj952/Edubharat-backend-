@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EduBharat - Har Bhasha Me Shiksha</title>
+  <script async function sendToBackend(base64Data) {
+  statusLog.innerHTML = "⏳ Sending to Bhashini Server...";
+  
+  try {
+    // Apne Backend URL se replace karein (e.g. Render Live URL)
+    const res = await fetch('http://localhost:5000/translate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        audio: base64Data,
+        sourceLang: 'hi',
+        targetLang: 'sat' // Santali
+      })
+    });
+
+    const data = await res.json();
+
+    if (data.translatedAudio) {
+      statusLog.innerHTML = "🔊 <b>Playing Santali Audio Output!</b>";
+      const translatedAudioPlayer = new Audio("data:audio/wav;base64," + data.translatedAudio);
+      translatedAudioPlayer.play();
+    } else {
+      statusLog.innerHTML = "⚠️ Backend response received (Bhashini API Key setup required).";
+    }
+  } catch(e) {
+    statusLog.innerHTML = "❌ Server error/offline. Deployment needed.";
+  }
+}
+src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* Fallback styles in case CDN is blocked on mobile */
+    body { font-family: sans-serif; background-color: #f8fafc; margin: 0; padding-bottom: 80px; }
+    .card { background: #ffffff; padding: 16px; margin: 12px; border-radius: 16px; border: 1px solid #e2e8f0; }
+    .header-box { background: #4338ca; color: white; padding: 20px; border-bottom-left-radius: 24px; border-bottom-right-radius: 24px; }
+    .btn-primary { background: #ffffff; color: #4338ca; border: none; padding: 12px; border-radius: 12px; font-weight: bold; width: 100%; cursor: pointer; }
+    .status-badge { background: #fef08a; color: #854d0e; padding: 4px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; }
+  </style>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <div class="header-box">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <div>
+        <h1 style="margin: 0; font-size: 22px;">EduBharat 🇮🇳</h1>
+        <p style="margin: 4px 0 0 0; font-size: 12px; opacity: 0.8;">Har Bhasha Me Shiksha</p>
+      </div>
+      <span class="status-badge">AI Voice MVP</span>
+    </div>
+  </div>
+
+  <!-- MAIN DEMO PANEL -->
+  <div style="max-width: 480px; margin: 0 auto;">
+    
+    <div class="card" style="background: linear-gradient(135deg, #4338ca, #6d28d9); color: white;">
+      <h2 style="margin-top: 0; font-size: 18px;">Teacher Voice Translator</h2>
+      <p style="font-size: 13px; opacity: 0.9;">Hindi audio record karein ya test audio file select karein:</p>
+      
+      <!-- Option A: Live Record Button -->
+      <button id="record-btn" class="btn-primary" style="margin-bottom: 10px;">
+        🎙️ Start Recording (Mic)
+      </button>
+
+      <!-- Option B: File Upload Fallback (Agar Mic Block Ho) -->
+      <div style="text-align: center; margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.2); padding-top: 10px;">
+        <label style="font-size: 12px; display: block; margin-bottom: 5px;">Or Choose Audio File (.mp3/.wav):</label>
+        <input type="file" id="audio-file" accept="audio/*" style="font-size: 12px; color: white;">
+      </div>
+    </div>
+
+    <!-- LOG DISPLAY -->
+    <div class="card">
+      <h4 style="margin: 0 0 8px 0; font-size: 14px;">System Status:</h4>
+      <div id="status-log" style="font-family: monospace; font-size: 12px; color: #334155; background: #f1f5f9; padding: 10px; border-radius: 8px;">
+        Ready for test...
+      </div>
+    </div>
+
+  </div>
+
+  <!-- SCRIPT -->
+  <script>
+    let mediaRecorder;
+    let audioChunks = [];
+    let isRecording = false;
+
+    const recordBtn = document.getElementById('record-btn');
+    const statusLog = document.getElementById('status-log');
+    const audioFileInput = document.getElementById('audio-file');
+
+    // 1. MIC RECORDING HANDLER
+    recordBtn.addEventListener('click', async () => {
+      if (!isRecording) {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          mediaRecorder = new MediaRecorder(stream);
+          audioChunks = [];
+
+          mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
+          
+          mediaRecorder.onstop = async () => {
+            const blob = new Blob(audioChunks, { type: 'audio/wav' });
+            processAudioBlob(blob);
+          };
+
+          mediaRecorder.start();
+          isRecording = true;
+          recordBtn.innerText = "🛑 Stop Recording";
+          recordBtn.style.background = "#ef4444";
+          recordBtn.style.color = "#ffffff";
+          statusLog.innerText = "Recording... Speak in Hindi now.";
+        } catch (err) {
+          statusLog.innerHTML = "❌ <b style='color:red;'>Mic Blocked!</b> Browsers block mic on HTTP/Localhost.<br>👉 Neeche se Audio File choose karke test karein.";
+        }
+      } else {
+        mediaRecorder.stop();
+        isRecording = false;
+        recordBtn.innerText = "🎙️ Start Recording (Mic)";
+        recordBtn.style.background = "#ffffff";
+        recordBtn.style.color = "#4338ca";
+        statusLog.innerText = "Processing recorded audio...";
+      }
+    });
+
+    // 2. FILE UPLOAD HANDLER (IF MIC BLOCKED)
+    audioFileInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        statusLog.innerText = "File loaded: " + file.name;
+        processAudioBlob(file);
+      }
+    });
+
+    // 3. CONVERT TO BASE64 & SEND TO BACKEND
+    async function processAudioBlob(blob) {
+      statusLog.innerText = "Converting audio to Base64...";
+      const reader = new FileReader();
+      reader.readAsDataURL(blob);
+      reader.onloadend = () => {
+        const base64Audio = reader.result.split(',')[1];
+        statusLog.innerHTML = "✅ Base64 Ready! (Length: " + base64Audio.length + ")<br>⌛ Next Step: Backend Server Connection...";
+        
+        // Step 2 Backend call
+        sendToBackend(base64Audio);
+      };
+    }
+
+    async function sendToBackend(base64Data) {
+      // Backend Step
+      console.log("Audio payload ready for Bhashini pipeline.");
+    }
+  </script>
+</body>
+</html>
